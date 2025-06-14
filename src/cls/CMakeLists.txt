@@ -371,3 +371,16 @@ set_target_properties(cls_test_remote_reads PROPERTIES
   INSTALL_RPATH ""
   CXX_VISIBILITY_PRESET hidden)
 install(TARGETS cls_test_remote_reads DESTINATION ${cls_dir})
+
+# cls_nvme_ndp
+set(cls_nvme_ndp_srcs nvme_ndp/cls_nvme_ndp.cc)
+add_library(cls_nvme_ndp SHARED ${cls_nvme_ndp_srcs})
+set_target_properties(cls_nvme_ndp PROPERTIES
+  VERSION "1.0.0"
+  SOVERSION "1"
+  INSTALL_RPATH ""
+  CXX_VISIBILITY_PRESET hidden)
+target_include_directories(cls_nvme_ndp PRIVATE
+  ${CMAKE_SOURCE_DIR}/src/spdk/include
+)
+install(TARGETS cls_nvme_ndp DESTINATION ${cls_dir})
