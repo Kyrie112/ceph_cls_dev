@@ -486,6 +486,18 @@ public:
      uint32_t op_flags = 0) = 0;
 
   /**
+   * read_phyinfo -- read physical addr of an object
+   *
+   * @param cid collection for object
+   * @param oid oid of object
+   * @param bl output ceph::buffer::list
+   * @returns number of bytes read on success, or negative error code on failure.
+   */
+   virtual int read_phyinfo(
+     CollectionHandle &c,
+     const ghobject_t& oid,
+     ceph::buffer::list& bl) = 0;
+  /**
    * fiemap -- get extent std::map of data of an object
    *
    * Returns an encoded std::map of the extents of an object's data portion

@@ -358,4 +358,15 @@ set_target_properties(cls_fifo PROPERTIES
 target_link_libraries(cls_fifo ${FMT_LIB})
 install(TARGETS cls_fifo DESTINATION ${cls_dir})
 
-
+# cls_ndp
+set(cls_ndp_srcs ndp/cls_ndp.cc)
+add_library(cls_ndp SHARED ${cls_ndp_srcs})
+set_target_properties(cls_ndp PROPERTIES
+  VERSION "1.0.0"
+  SOVERSION "1"
+  INSTALL_RPATH ""
+  CXX_VISIBILITY_PRESET hidden)
+target_include_directories(cls_ndp PRIVATE
+  ${CMAKE_SOURCE_DIR}/src/spdk/include
+)
+install(TARGETS cls_ndp DESTINATION ${cls_dir})

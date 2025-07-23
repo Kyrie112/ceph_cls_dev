@@ -761,6 +761,20 @@ int cls_cxx_get_gathered_data(cls_method_context_t hctx, std::map<std::string, b
   return r;
 }
 
+// new cls api completed here
+int cls_cxx_get_physical_info(cls_method_context_t hctx, bufferlist *outbl)
+{
+  PrimaryLogPG::OpContext **pctx = (PrimaryLogPG::OpContext **)hctx;
+  vector<OSDOp> ops(1);
+  int ret;
+  ops[0].op.op = CEPH_OSD_OP_PHYINFO;
+  ret = (*pctx)->pg->do_osd_ops(*pctx, ops);
+  if (ret < 0)
+    return ret;
+  *outbl = std::move(ops[0].outdata);
+  return outbl->length();
+}
+
 // although at first glance the implementation looks the same as in
 // crimson-osd, it's different b/c of how the dout macro expands.
 int cls_log(int level, const char *format, ...)

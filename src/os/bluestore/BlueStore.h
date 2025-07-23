@@ -3110,7 +3110,10 @@ public:
     size_t len,
     ceph::buffer::list& bl,
     uint32_t op_flags = 0) override;
-
+  int read_phyinfo(
+     CollectionHandle &c,
+     const ghobject_t& oid,
+     ceph::buffer::list& bl) override;
 private:
 
   // --------------------------------------------------------
@@ -3193,7 +3196,11 @@ private:
     ceph::buffer::list& bl,
     uint32_t op_flags = 0,
     uint64_t retry_count = 0);
-
+  int _do_read_phyinfo(
+    Collection *c,
+    OnodeRef& o,
+    ceph::buffer::list& bl,
+    uint64_t retry_count = 0);
   int _do_readv(
     Collection *c,
     OnodeRef& o,

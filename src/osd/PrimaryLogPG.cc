@@ -5945,6 +5945,34 @@ int PrimaryLogPG::do_sparse_read(OpContext *ctx, OSDOp& osd_op) {
   return 0;
 }
 
+int PrimaryLogPG::do_read_phyinfo(OpContext *ctx, OSDOp& osd_op) {
+  // developed according to do_read
+  dout(20) << __func__ << dendl;
+  int result = 0;
+  auto& op = osd_op.op;
+  auto& oi = ctx->new_obs.oi;
+  auto& soid = oi.soid;
+  
+  if (pool.info.is_erasure()) {
+    return -1;  // not developed for erasure code
+  } else {
+    // new type of method for backend
+    int r = pgbackend->objects_phyinfo_read_sync(soid, &osd_op.outdata);
+    if (r == -EIO) {
+      r = rep_repair_primary_object(soid, ctx);
+    }
+    if (r >= 0)
+      op.extent.length = r;
+    else if (r == -EAGAIN) {
+      result = -EAGAIN;
+    } else {
+      result = r;
+      op.extent.length = 0;
+    }
+  }
+  return result;
+}
+
 int PrimaryLogPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
 {
   int result = 0;
@@ -6199,7 +6227,9 @@ int PrimaryLogPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
 	ctx->delta_stats.num_rd++;
       }
       break;
-
+    case CEPH_OSD_OP_PHYINFO:
+      result = do_read_phyinfo(ctx, osd_op);
+      break;
     case CEPH_OSD_OP_ISDIRTY:
       ++ctx->num_read;
       {

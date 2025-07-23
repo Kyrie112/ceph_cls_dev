@@ -157,6 +157,9 @@ extern int cls_cxx_gather(cls_method_context_t hctx, const std::set<std::string>
 
 extern int cls_cxx_get_gathered_data(cls_method_context_t hctx, std::map<std::string, bufferlist> *results);
 
+/* new function defined here to read physical information of target object */
+extern int cls_cxx_get_physical_info(cls_method_context_t hctx, ceph::buffer::list *bl);
+
 /* These are also defined in rados.h and librados.h. Keep them in sync! */
 #define CEPH_OSD_TMAP_HDR 'h'
 #define CEPH_OSD_TMAP_SET 's'

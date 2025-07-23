@@ -1529,6 +1529,13 @@ int ECBackend::objects_read_sync(
   return -EOPNOTSUPP;
 }
 
+int ECBackend::objects_phyinfo_read_sync(
+    const hobject_t &hoid,
+    ceph::buffer::list *bl)
+{
+  return -EOPNOTSUPP;
+}
+
 void ECBackend::objects_read_async(
   const hobject_t &hoid,
   const list<pair<boost::tuple<uint64_t, uint64_t, uint32_t>,

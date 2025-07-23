@@ -1415,6 +1415,7 @@ protected:
   friend struct C_ExtentCmpRead;
 
   int do_read(OpContext *ctx, OSDOp& osd_op);
+  int do_read_phyinfo(OpContext *ctx, OSDOp& osd_op);
   int do_sparse_read(OpContext *ctx, OSDOp& osd_op);
   int do_writesame(OpContext *ctx, OSDOp& osd_op);
 

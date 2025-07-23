@@ -250,6 +250,7 @@ extern const char *ceph_osd_state_name(int s);
 	f(STAT,		__CEPH_OSD_OP(RD, DATA, 2),	"stat")		    \
 	f(MAPEXT,	__CEPH_OSD_OP(RD, DATA, 3),	"mapext")	    \
 	f(CHECKSUM,	__CEPH_OSD_OP(RD, DATA, 31),	"checksum")	    \
+	f(PHYINFO,	__CEPH_OSD_OP(RD, DATA, 78),	"phyinfo")	    \
 									    \
 	/* fancy read */						    \
 	f(MASKTRUNC,	__CEPH_OSD_OP(RD, DATA, 4),	"masktrunc")	    \

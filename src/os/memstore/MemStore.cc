@@ -331,7 +331,14 @@ int MemStore::read(
   bl.clear();
   return o->read(offset, l, bl);
 }
-
+int MemStore::read_phyinfo(
+  CollectionHandle &c,
+  const ghobject_t& oid,
+  ceph::buffer::list& bl)
+{
+  /* will need to be completed later?*/
+  return 0;
+}
 int MemStore::fiemap(CollectionHandle& ch, const ghobject_t& oid,
 		     uint64_t offset, size_t len, ceph::buffer::list& bl)
 {

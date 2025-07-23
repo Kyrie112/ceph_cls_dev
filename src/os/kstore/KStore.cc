@@ -1207,6 +1207,15 @@ int KStore::read(
   return r;
 }
 
+int KStore::read_phyinfo(
+  CollectionHandle &c,
+  const ghobject_t& oid,
+  ceph::buffer::list& bl)
+{
+  /* need to be completed later? */
+  return 0;
+}
+
 int KStore::_do_read(
     OnodeRef o,
     uint64_t offset,

@@ -12071,7 +12071,101 @@ int BlueStore::read(
     cct->_conf->bluestore_log_op_age);
   return r;
 }
+int BlueStore::read_phyinfo(
+  CollectionHandle &c_,
+  const ghobject_t& oid,
+  ceph::buffer::list& bl)
+{
+  auto start = mono_clock::now();
+  Collection *c = static_cast<Collection *>(c_.get());
+  const coll_t &cid = c->get_cid();
+  if (!c->exists)
+    return -ENOENT;
 
+  bl.clear();
+  int r;
+  {
+    std::shared_lock l(c->lock);
+    auto start1 = mono_clock::now();
+    OnodeRef o = c->get_onode(oid, false);
+    log_latency("get_onode@read",
+      l_bluestore_read_onode_meta_lat,
+      mono_clock::now() - start1,
+      cct->_conf->bluestore_log_op_age);
+    if (!o || !o->exists) {
+      r = -ENOENT;
+      goto out;
+    }
+
+    r = _do_read_phyinfo(c, o, bl);
+    if (r == -EIO) {
+      logger->inc(l_bluestore_read_eio);
+    }
+  }
+
+ out:
+  if (r >= 0 && _debug_data_eio(oid)) {
+    r = -EIO;
+    derr << __func__ << " " << c->cid << " " << oid << " INJECT EIO" << dendl;
+  } else if (oid.hobj.pool > 0 &&  /* FIXME, see #23029 */
+	     cct->_conf->bluestore_debug_random_read_err &&
+	     (rand() % (int)(cct->_conf->bluestore_debug_random_read_err *
+			     100.0)) == 0) {
+    dout(0) << __func__ << ": inject random EIO" << dendl;
+    r = -EIO;
+  }
+  log_latency(__func__,
+    l_bluestore_read_lat,
+    mono_clock::now() - start,
+    cct->_conf->bluestore_log_op_age);
+  return r;
+}
+int BlueStore::_do_read_phyinfo(  
+  Collection *c,  
+  OnodeRef& o,  
+  bufferlist& bl,  
+  uint64_t retry_count)  
+{  
+  dout(10) << __func__ << " " << c->cid << " " << o->oid << dendl;  
+    
+  if (!o->exists) {  
+    return -ENOENT;  
+  }  
+  
+  // 确保 extent_map 被加载  
+  o->extent_map.fault_range(db, 0, o->onode.size);  
+  
+  // 使用连续的两个uint64_t表示 (physical_offset, length) ， 返回一个字符串
+  std::string physical_extents = ""; 
+  uint64_t extent_count = 0; 
+    
+  // 遍历 extent map  
+  for (const auto& e : o->extent_map.extent_map) {  
+    if (!e.blob) continue;  
+      
+    const bluestore_blob_t& blob = e.blob->get_blob();  
+    uint64_t disk_extent_left;  
+    uint64_t physical_offset = blob.calc_offset(e.blob_offset, &disk_extent_left);  
+      
+    // 检查物理偏移量是否有效  
+    if (physical_offset != bluestore_pextent_t::INVALID_OFFSET) {  
+      uint64_t length = std::min((uint64_t)e.length, disk_extent_left);  
+      physical_extents += std::to_string(physical_offset) + " " + 
+                          std::to_string(length) + "\n";
+      extent_count += 1;
+        
+      dout(20) << __func__ << " physical=0x" << std::hex << physical_offset  
+               << " length=0x" << length << std::dec << dendl;  
+    }  
+  }  
+    
+  // 编码到 bufferlist  
+  encode(physical_extents, bl);  
+    
+  dout(10) << __func__ << " found " << extent_count << " physical extents" << dendl;  
+    
+  return 0;  
+}
 void BlueStore::_read_cache(
   OnodeRef& o,
   uint64_t offset,

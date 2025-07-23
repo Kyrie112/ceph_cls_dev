@@ -477,6 +477,10 @@ public:
     size_t len,
     ceph::buffer::list& bl,
     uint32_t op_flags = 0) override;
+  int read_phyinfo(
+    CollectionHandle &c,
+    const ghobject_t& oid,
+    ceph::buffer::list& bl) override;
   int _do_read(
     OnodeRef o,
     uint64_t offset,

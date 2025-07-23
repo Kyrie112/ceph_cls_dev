@@ -302,6 +302,10 @@ public:
     size_t len,
     ceph::buffer::list& bl,
     uint32_t op_flags = 0) override;
+  int read_phyinfo(
+    CollectionHandle &c,
+    const ghobject_t& oid,
+    ceph::buffer::list& bl) override;
   using ObjectStore::fiemap;
   int fiemap(CollectionHandle& c, const ghobject_t& oid,
 	     uint64_t offset, size_t len, ceph::buffer::list& bl) override;
