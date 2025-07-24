@@ -1,12 +1,12 @@
 #include <cerrno>
 
 #include "objclass/objclass.h"
-#include "cls/ndp/cls_nvme_ndp_ops.h"
+#include "cls/ndp/cls_ndp_ops.h"
 //#include "spdk/include/spdk/nvme.h"
 //#include "spdk/include/spdk/env.h"
 
 CLS_VER(1,0)
-CLS_NAME(nvme_ndp)
+CLS_NAME(ndp)
 
 namespace rados::cls::ndp{
     /*
@@ -451,10 +451,10 @@ namespace rados::cls::ndp{
     }
 }
 
-CLS_INIT(nvme_ndp)
+CLS_INIT(ndp)
 {
-    using namespace::rados::cls::nvme_ndp;
-    CLS_LOG(0, "Loading nvme_ndp class!");
+    using namespace::rados::cls::ndp;
+    CLS_LOG(0, "Loading ndp class!");
 
     cls_handle_t h_class;
     // cls_method_handle_t h_nvme_send_task;
@@ -465,7 +465,7 @@ CLS_INIT(nvme_ndp)
     cls_method_handle_t h_ndp_stat32;
     cls_method_handle_t h_ndp_bitmap;
 
-    cls_register("nvme_ndp", &h_class);
+    cls_register("ndp", &h_class);
     /*
     cls_register_cxx_method(h_class, "nvme_send_task",
                             CLS_METHOD_RD | CLS_METHOD_WR,
