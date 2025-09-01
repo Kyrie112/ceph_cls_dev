@@ -428,6 +428,11 @@ void SharedDriverQueueData::_aio_handle(Task *t, IOContext *ioc)
           }
           break;
         }
+        case IOCommand::CSD_COMMAND://我们的自定义操作类型
+        {
+          //todo:使用spdk构造命令并进行命令发送
+        }
+        break;
       }
       current_queue_depth++;
     }
@@ -891,6 +896,48 @@ static void make_read_tasks(
   }
 }
 
+static void make_csd_tasks(NVMEDevice *dev,
+    uint64_t aligned_off,
+    IOContext *ioc, char *buf, uint64_t aligned_len, Task *primary,
+    uint64_t orig_off, uint64_t orig_len, bufferlist *csdop)
+{
+  // This value may need to be got from configuration later.
+  std::string op_type = csdop->to_str();
+  uint64_t split_size = 131072; // 128KB.
+  uint64_t tmp_off = orig_off - aligned_off, remain_orig_len = orig_len;
+  auto begin = aligned_off;
+  const auto aligned_end = begin + aligned_len;
+
+  for (; begin < aligned_end; begin += split_size) {
+    auto read_size = std::min(aligned_end - begin, split_size);
+    auto tmp_len = std::min(remain_orig_len, read_size - tmp_off);
+    Task *t = nullptr;
+
+    if (primary && (aligned_len <= split_size)) {
+      t = primary;
+    } else {
+      if (op_type == "READ") {
+        t = new Task(dev, IOCommand::READ_COMMAND, begin, read_size, 0, primary);
+      } else if (op_type == "CALCULATE") { // 暂时叫这个，表示需要CSD进行数据计算
+        t = new Task(dev, IOCommand::CSD_COMMAND, begin, read_size, 0, primary);
+      }
+    }
+
+    t->ctx = ioc;
+
+    // TODO: if upper layer alloc memory with known physical address,
+    // we can reduce this copy
+    t->fill_cb = [buf, t, tmp_off, tmp_len]  {
+      t->copy_to_buf(buf, tmp_off, tmp_len);
+    };
+
+    ioc_append_task(ioc, t);
+    remain_orig_len -= tmp_len;
+    buf += tmp_len;
+    tmp_off = 0;
+  }
+}
+
 int NVMEDevice::aio_write(
     uint64_t off,
     bufferlist &bl,
@@ -962,6 +1009,24 @@ int NVMEDevice::aio_read(
   char* buf = p.c_str();
 
   make_read_tasks(this, off, ioc, buf, len, NULL, off, len);
+  dout(5) << __func__ << " " << off << "~" << len << dendl;
+  return 0;
+}
+
+int NVMEDevice::aio_csd(
+    uint64_t off,
+    uint64_t len,
+    bufferlist *pbl,
+    bufferlist *csdop,
+    IOContext *ioc)
+{
+  dout(20) << __func__ << " " << off << "~" << len << " ioc " << ioc << dendl;
+  ceph_assert(is_valid_io(off, len));
+  bufferptr p = buffer::create_small_page_aligned(len);
+  pbl->append(p);
+  char* buf = p.c_str();
+
+  make_csd_tasks(this, off, ioc, buf, len, NULL, off, len, csdop);
   dout(5) << __func__ << " " << off << "~" << len << dendl;
   return 0;
 }

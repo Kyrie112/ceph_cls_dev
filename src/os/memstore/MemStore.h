@@ -302,6 +302,11 @@ public:
     size_t len,
     ceph::buffer::list& bl,
     uint32_t op_flags = 0) override;
+  int csd_read(
+    CollectionHandle &c,
+    const ghobject_t& oid,
+    ceph::buffer::list& csdop,
+    ceph::buffer::list& bl) override;
   int read_phyinfo(
     CollectionHandle &c,
     const ghobject_t& oid,

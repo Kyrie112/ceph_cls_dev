@@ -96,28 +96,83 @@ namespace rados::cls::ndp{
         }
     }
     */
+    int ndp_csd(cls_method_context_t hctx,
+                   ceph::buffer::list* in, ceph::buffer::list* out) {
+        ceph::bufferlist result_string;
+        //首先测试能否正确发送读取指令
+        int r = cls_cxx_send_calculation_task(hctx, in, &result_string); // 尝试仿照getphyinfo的方式去发送NVMe指令，in表示需要调用的算子名称
+        if (r < 0) {
+            return r;
+        }
+        out->append(result_string.to_str());
+        return 0;
+    }
 
     int ndp_getphyinfo(cls_method_context_t hctx,
                    ceph::buffer::list* in, ceph::buffer::list* out) {
-    CLS_LOG(5, "ndp_get_physical_info: called");
+        ceph::bufferlist physical_extents;
+        int r = cls_cxx_get_physical_info(hctx, &physical_extents);
+        if (r < 0) {
+            return r;
+        }
 
-    ceph::bufferlist physical_extents;
-    int r = cls_cxx_get_physical_info(hctx, &physical_extents);
-    if (r < 0) {
-        CLS_ERR("ndp_get_physical_info: failed to get physical info, err=%d", r);
-        return r;
+        std::string input_str = physical_extents.to_str();
+        if (input_str.empty()) {
+            out->append("no physical extents found\n");
+            return 0;
+        }
+
+        uint64_t offset = 0, length = 0;
+        uint64_t cur_start = 0, cur_len = 0;
+        bool first = true;
+
+        std::string merged;
+
+        // 按行解析
+        size_t pos = 0;
+        while (pos < input_str.size()) {
+            size_t end = input_str.find('\n', pos);
+            if (end == std::string::npos) end = input_str.size();
+
+            std::string line = input_str.substr(pos, end - pos);
+            pos = end + 1;  // 移动到下一行
+
+            if (line.empty()) continue;
+
+            // 用 sscanf 解析两个 uint64_t
+            if (sscanf(line.c_str(), "%lu %lu", &offset, &length) != 2) {
+                continue; // 格式不对就跳过
+            }
+
+            if (first) {
+                cur_start = offset;
+                cur_len = length;
+                first = false;
+            } else {
+                if (offset == cur_start + cur_len) {
+                    cur_len += length;  // 连续，合并
+                } else {
+                    // 不连续，输出当前区间
+                    merged += std::to_string(cur_start) + " " +
+                            std::to_string(cur_len) + "\n";
+                    // 开启新区间
+                    cur_start = offset;
+                    cur_len = length;
+                }
+            }
+        }
+
+        // 输出最后一段
+        if (!first) {
+            merged += std::to_string(cur_start) + " " +
+                    std::to_string(cur_len) + "\n";
+        }
+
+        out->append(merged);
+        return 0;
     }
 
-    std::string result = physical_extents.to_str();
-    if (result.empty()) {
-        result = "no physical extents found\n";
-    }
 
-    out->append(result);
-
-    CLS_LOG(5, "ndp_get_physical_info: output %zu extents", result.length());
-    return 0;
-}
 
 
     int ndp_grep(cls_method_context_t hctx,  

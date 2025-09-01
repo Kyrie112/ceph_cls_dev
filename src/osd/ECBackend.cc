@@ -1529,6 +1529,14 @@ int ECBackend::objects_read_sync(
   return -EOPNOTSUPP;
 }
 
+int ECBackend::objects_csd_read_sync(
+    const hobject_t &hoid,
+    ceph::buffer::list *csdop,
+    ceph::buffer::list *bl)
+{
+  return -EOPNOTSUPP; 
+}
+
 int ECBackend::objects_phyinfo_read_sync(
     const hobject_t &hoid,
     ceph::buffer::list *bl)

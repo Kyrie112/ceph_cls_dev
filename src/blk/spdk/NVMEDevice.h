@@ -32,7 +32,8 @@
 enum class IOCommand {
   READ_COMMAND,
   WRITE_COMMAND,
-  FLUSH_COMMAND
+  FLUSH_COMMAND,
+  CSD_COMMAND //新NVMe操作类型
 };
 
 class SharedDriverData;
@@ -65,6 +66,12 @@ class NVMEDevice : public BlockDevice {
     uint64_t off,
     uint64_t len,
     bufferlist *pbl,
+    IOContext *ioc) override;
+  int aio_csd(
+    uint64_t off,
+    uint64_t len,
+    bufferlist *pbl,
+    bufferlist *csdop,
     IOContext *ioc) override;
   int aio_write(uint64_t off, bufferlist& bl,
                 IOContext *ioc,

@@ -353,6 +353,12 @@ int PMEMDevice::aio_read(uint64_t off, uint64_t len, bufferlist *pbl,
   return read(off, len, pbl, ioc, false);
 }
 
+int PMEMDevice::aio_read(uint64_t off, uint64_t len, bufferlist *pbl, bufferlist *csdop,
+		      IOContext *ioc)
+{
+  return read(off, len, pbl, ioc, false);
+}
+
 int PMEMDevice::read_random(uint64_t off, uint64_t len, char *buf, bool buffered)
 {
   dout(5) << __func__ << " " << off << "~" << len << dendl;

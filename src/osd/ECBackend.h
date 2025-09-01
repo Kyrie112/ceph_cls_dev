@@ -121,6 +121,11 @@ public:
     uint64_t len,
     uint32_t op_flags,
     ceph::buffer::list *bl) override;
+  // 纠删码类型后端存储不用管
+  int objects_csd_read_sync(
+    const hobject_t &hoid,
+    ceph::buffer::list *csdop,
+    ceph::buffer::list *bl) override;
   int objects_phyinfo_read_sync(
     const hobject_t &hoid,
     ceph::buffer::list *bl) override;

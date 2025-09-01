@@ -760,6 +760,19 @@ int cls_cxx_get_gathered_data(cls_method_context_t hctx, std::map<std::string, b
   }
   return r;
 }
+// 具体发送计算指令的实现在这里进行
+int cls_cxx_send_calculation_task(cls_method_context_t hctx, bufferlist *algorithm_name, bufferlist *outbl)
+{
+  PrimaryLogPG::OpContext **pctx = (PrimaryLogPG::OpContext **)hctx;
+  vector<OSDOp> ops(1);
+  int ret;
+  ops[0].op.op = CEPH_OSD_OP_CSD; // new type of osd op
+  ops[0].indata = *algorithm_name; // 调用算子名，用于后续的识别
+  ret = (*pctx)->pg->do_osd_ops(*pctx, ops);
+  if (ret < 0) return ret;
+  *outbl = std::move(ops[0].outdata);
+  return outbl->length();
+}
 
 // new cls api completed here
 int cls_cxx_get_physical_info(cls_method_context_t hctx, bufferlist *outbl)

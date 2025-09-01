@@ -12071,6 +12071,57 @@ int BlueStore::read(
     cct->_conf->bluestore_log_op_age);
   return r;
 }
+//这里处理csd算子
+int BlueStore::csd_read(
+    CollectionHandle &c_,
+    const ghobject_t& oid,
+    ceph::buffer::list& csdop,
+    ceph::buffer::list& bl)
+{
+  auto start = mono_clock::now();
+  Collection *c = static_cast<Collection *>(c_.get());
+  const coll_t &cid = c->get_cid();
+  if (!c->exists)
+    return -ENOENT;
+
+  bl.clear();
+  int r;
+  {
+    std::shared_lock l(c->lock);
+    auto start1 = mono_clock::now();
+    OnodeRef o = c->get_onode(oid, false);
+    log_latency("get_onode@read",
+      l_bluestore_read_onode_meta_lat,
+      mono_clock::now() - start1,
+      cct->_conf->bluestore_log_op_age);
+    if (!o || !o->exists) {
+      r = -ENOENT;
+      goto out;
+    }
+
+    r = _do_csd_read(c, o, csdop, bl);
+    if (r == -EIO) {
+      logger->inc(l_bluestore_read_eio);
+    }
+  }
+
+ out:
+  if (r >= 0 && _debug_data_eio(oid)) {
+    r = -EIO;
+    derr << __func__ << " " << c->cid << " " << oid << " INJECT EIO" << dendl;
+  } else if (oid.hobj.pool > 0 &&  /* FIXME, see #23029 */
+	     cct->_conf->bluestore_debug_random_read_err &&
+	     (rand() % (int)(cct->_conf->bluestore_debug_random_read_err *
+			     100.0)) == 0) {
+    dout(0) << __func__ << ": inject random EIO" << dendl;
+    r = -EIO;
+  }
+  log_latency(__func__,
+    l_bluestore_read_lat,
+    mono_clock::now() - start,
+    cct->_conf->bluestore_log_op_age);
+  return r;
+}
 int BlueStore::read_phyinfo(
   CollectionHandle &c_,
   const ghobject_t& oid,
@@ -12120,6 +12171,60 @@ int BlueStore::read_phyinfo(
     cct->_conf->bluestore_log_op_age);
   return r;
 }
+//核心函数，目前使用blob的map函数以及给NVMe设备增加新的IO操作类型实现发送自定义NVMe指令
+//仿照_do_read实现，需要实现准备csd_read_ioc的函数，然后使用这个函数进行指令传递
+//最后进入NVMe的Device文件中实现如何发送这种指令到NVMe设备
+int BlueStore::_do_csd_read(  
+  Collection *c,  
+  OnodeRef& o, 
+  bufferlist& csdop, 
+  bufferlist& bl,  
+  uint64_t retry_count)  
+{
+    FUNCTRACE(cct);
+    int r = 0;
+    int read_cache_policy = BufferSpace::BYPASS_CLEAN_CACHE; // need to bypass anycache
+    dout(10) << __func__ << " " << c->cid << " " << o->oid << dendl;
+    if (!o->exists) {
+      return -ENOENT;
+    }
+    o->extent_map.fault_range(db, 0, o->onode.size);
+    ready_regions_t ready_regions;
+    blobs2read_t blobs2read;
+    _read_cache(o, 0, o->onode.size, read_cache_policy, ready_regions, blobs2read);
+    vector<bufferlist> compressed_blob_bls;
+    IOContext ioc(cct, NULL, !cct->_conf->bluestore_fail_eio);
+    //制作csd读取命令的IOC，然后后续提交给块设备
+    //在prepare过程中，会把读取的bufferlist绑定给blobs2read和compressed_blobs_bls
+    r = _prepare_csd_ioc(blobs2read, &compressed_blob_bls, &ioc, &csdop);
+    if (r < 0)
+      return r;
+    int64_t num_ios = blobs2read.size();
+    if (ioc.has_pending_aios()) {
+      num_ios = ioc.get_num_ios();
+      bdev->aio_submit(&ioc);
+      dout(20) << __func__ << " waiting for aio" << dendl;
+      ioc.aio_wait();
+      r = ioc.get_return_value();
+      if (r < 0) {
+        ceph_assert(r == -EIO); // no other errors allowed
+        return -EIO;
+      }
+    }
+    bool csum_error = false;
+    r = _generate_read_result_bl(o, 0, o->onode.size, ready_regions,
+                                compressed_blob_bls, blobs2read,
+                                false,
+                                &csum_error, bl);
+    if (csum_error) {
+      if (retry_count >= cct->_conf->bluestore_retry_disk_reads) {
+        return -EIO;
+      }
+      return _do_csd_read(c, o, csdop, bl, retry_count + 1);
+    }
+    return r;
+}
+/* version 1.0: 无法处理碎片化extend
 int BlueStore::_do_read_phyinfo(  
   Collection *c,  
   OnodeRef& o,  
@@ -12166,6 +12271,133 @@ int BlueStore::_do_read_phyinfo(
     
   return 0;  
 }
+*/
+
+int BlueStore::_do_read_phyinfo(
+    Collection *c,
+    OnodeRef& o,
+    bufferlist& bl,
+    uint64_t retry_count)
+{
+    dout(10) << __func__ << " " << c->cid << " " << o->oid << dendl;
+
+    if (!o->exists) {
+        return -ENOENT;
+    }
+
+    // 确保 extent_map 已加载
+    o->extent_map.fault_range(db, 0, o->onode.size);
+
+    std::string physical_extents;
+    uint64_t extent_count = 0;
+
+    // 遍历对象的每个逻辑 extent
+    for (const auto& e : o->extent_map.extent_map) {
+        if (!e.blob) continue;
+
+        const bluestore_blob_t& blob = e.blob->get_blob();
+
+        // 使用 blob.map 遍历这个 extent 内所有物理片段
+        // to do: 使用blob.map的回调函数去发送NVMe指令
+        blob.map(e.blob_offset, e.length,
+            [&](uint64_t logical_off, uint64_t physical_off, uint64_t len) {
+                // 检查有效性
+                if (physical_off != bluestore_pextent_t::INVALID_OFFSET && len > 0) {
+                    physical_extents += std::to_string(physical_off) + " " +
+                                        std::to_string(len) + "\n";
+                    dout(20) << __func__ << " logical=0x" << std::hex << logical_off
+                             << " physical=0x" << physical_off
+                             << " length=0x" << len << std::dec << dendl;
+                    extent_count++;
+                }
+                return 0; // 返回0表示继续遍历
+            }
+        );
+    }
+
+    // 编码到 bufferlist 返回
+    encode(physical_extents, bl);
+
+    dout(10) << __func__ << " found " << extent_count << " physical extents" << dendl;
+
+    return 0;
+}
+
+/* next generation (to): we merge the continuous address into 1 line
+int BlueStore::_do_read_phyinfo(
+  Collection *c,
+  OnodeRef& o,
+  bufferlist& bl,
+  uint64_t retry_count)
+{
+  dout(10) << __func__ << " " << c->cid << " " << o->oid << dendl;
+
+  if (!o->exists) {
+    return -ENOENT;
+  }
+
+  // 确保 extent_map 被加载
+  o->extent_map.fault_range(db, 0, o->onode.size);
+
+  std::string physical_extents = "";
+  uint64_t extent_count = 0;
+
+  uint64_t cur_start = bluestore_pextent_t::INVALID_OFFSET;
+  uint64_t cur_length = 0;
+
+  for (const auto& e : o->extent_map.extent_map) {
+    if (!e.blob) continue;
+
+    const bluestore_blob_t& blob = e.blob->get_blob();
+    uint64_t disk_extent_left;
+    uint64_t physical_offset = blob.calc_offset(e.blob_offset, &disk_extent_left);
+
+    if (physical_offset == bluestore_pextent_t::INVALID_OFFSET) {
+      continue;
+    }
+
+    uint64_t length = std::min((uint64_t)e.length, disk_extent_left);
+
+    // 如果当前还没有开始，初始化
+    if (cur_start == bluestore_pextent_t::INVALID_OFFSET) {
+      cur_start = physical_offset;
+      cur_length = length;
+    } else {
+      // 如果连续，合并
+      if (physical_offset == cur_start + cur_length) {
+        cur_length += length;
+      } else {
+        // 不连续，先输出前一个
+        physical_extents += std::to_string(cur_start) + " " +
+                            std::to_string(cur_length) + "\n";
+        extent_count++;
+
+        // 开启新的区间
+        cur_start = physical_offset;
+        cur_length = length;
+      }
+    }
+
+    dout(20) << __func__ << " physical=0x" << std::hex << physical_offset
+             << " length=0x" << length << std::dec << dendl;
+  }
+
+  // 处理最后一个区间
+  if (cur_start != bluestore_pextent_t::INVALID_OFFSET) {
+    physical_extents += std::to_string(cur_start) + " " +
+                        std::to_string(cur_length) + "\n";
+    extent_count++;
+  }
+
+  // 编码到 bufferlist
+  encode(physical_extents, bl);
+
+  dout(10) << __func__ << " found " << extent_count << " merged physical extents" << dendl;
+
+  return 0;
+}
+*/
+
 void BlueStore::_read_cache(
   OnodeRef& o,
   uint64_t offset,
@@ -12261,6 +12493,76 @@ void BlueStore::_read_cache(
     }
     ++lp;
   }
+}
+
+int BlueStore::_prepare_csd_ioc(
+  blobs2read_t& blobs2read,
+    std::vector<bufferlist>* compressed_blob_bls,
+    IOContext* ioc,
+    bufferlist* csdop)
+{
+  for (auto& p : blobs2read) {
+    const BlobRef& bptr = p.first;
+    regions2read_t& r2r = p.second;
+    dout(20) << __func__ << "  blob " << *bptr << " need "
+             << r2r << dendl;
+    if (bptr->get_blob().is_compressed()) {
+      // read the whole thing
+      if (compressed_blob_bls->empty()) {
+        // ensure we avoid any reallocation on subsequent blobs
+        compressed_blob_bls->reserve(blobs2read.size());
+      }
+      compressed_blob_bls->push_back(bufferlist());
+      bufferlist& bl = compressed_blob_bls->back();
+      auto r = bptr->get_blob().map(
+        0, bptr->get_blob().get_ondisk_length(),
+        [&](uint64_t offset, uint64_t length) {
+          int r = bdev->aio_csd(offset, length, &bl, csdop, ioc);
+          if (r < 0)
+            return r;
+          return 0;
+        });
+      if (r < 0) {
+        derr << __func__ << " bdev-read failed: " << cpp_strerror(r) << dendl;
+        if (r == -EIO) {
+          // propagate EIO to caller
+          return r;
+        }
+        ceph_assert(r == 0);
+      }
+    } else {
+      // read the pieces
+      for (auto& req : r2r) {
+        dout(20) << __func__ << "    region 0x" << std::hex
+                 << req.regs.front().logical_offset
+                 << ": 0x" << req.regs.front().blob_xoffset
+                 << " reading 0x" << req.r_off
+                 << "~" << req.r_len << std::dec
+                 << dendl;
+
+        // read it
+        auto r = bptr->get_blob().map(
+          req.r_off, req.r_len,
+          [&](uint64_t offset, uint64_t length) {
+            int r = bdev->aio_csd(offset, length, &req.bl, csdop, ioc);
+            if (r < 0)
+              return r;
+            return 0;
+          });
+        if (r < 0) {
+          derr << __func__ << " bdev-read failed: " << cpp_strerror(r)
+               << dendl;
+          if (r == -EIO) {
+            // propagate EIO to caller
+            return r;
+          }
+          ceph_assert(r == 0);
+        }
+        ceph_assert(req.bl.length() == req.r_len);
+      }
+    }
+  }
+  return 0;
 }
 
 int BlueStore::_prepare_read_ioc(

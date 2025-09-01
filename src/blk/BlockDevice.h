@@ -284,6 +284,13 @@ public:
     uint64_t len,
     ceph::buffer::list *pbl,
     IOContext *ioc) = 0;
+  //给底层存储设备增加方法
+  virtual int aio_csd(
+    uint64_t off,
+    uint64_t len,
+    ceph::buffer::list *pbl,
+    ceph::buffer::list *csdop,
+    IOContext *ioc) = 0;
   virtual int aio_write(
     uint64_t off,
     ceph::buffer::list& bl,

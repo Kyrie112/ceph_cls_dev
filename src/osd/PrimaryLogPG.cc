@@ -5973,6 +5973,33 @@ int PrimaryLogPG::do_read_phyinfo(OpContext *ctx, OSDOp& osd_op) {
   return result;
 }
 
+int PrimaryLogPG::do_read_csd(OpContext *ctx, OSDOp& osd_op) {
+  dout(20) << __func__ << dendl;
+  int result = 0;
+  auto& op = osd_op.op;
+  auto& oi = ctx->new_obs.oi;
+  auto& soid = oi.soid;
+  
+  if (pool.info.is_erasure()) {
+    return -1;  //暂时不支持纠删码类型的后端存储
+  } else {
+    // 调用新的方法，携带一个算子名参数(osd_op.indata)
+    int r = pgbackend->objects_csd_read_sync(soid, &osd_op.indata ,&osd_op.outdata);
+    if (r == -EIO) {
+      r = rep_repair_primary_object(soid, ctx);
+    }
+    if (r >= 0)
+      op.extent.length = r;
+    else if (r == -EAGAIN) {
+      result = -EAGAIN;
+    } else {
+      result = r;
+      op.extent.length = 0;
+    }
+  }
+  return result;
+}
+
 int PrimaryLogPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
 {
   int result = 0;
@@ -6229,6 +6256,10 @@ int PrimaryLogPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
       break;
     case CEPH_OSD_OP_PHYINFO:
       result = do_read_phyinfo(ctx, osd_op);
+      break;
+    // 处理CSD操作指令
+    case CEPH_OSD_OP_CSD:
+      result = do_read_csd(ctx, osd_op);
       break;
     case CEPH_OSD_OP_ISDIRTY:
       ++ctx->num_read;

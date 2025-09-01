@@ -331,6 +331,14 @@ int MemStore::read(
   bl.clear();
   return o->read(offset, l, bl);
 }
+int MemStore::csd_read(
+    CollectionHandle &c,
+    const ghobject_t& oid,
+    ceph::buffer::list& csdop,
+    ceph::buffer::list& bl)
+{
+  return 0;
+}
 int MemStore::read_phyinfo(
   CollectionHandle &c,
   const ghobject_t& oid,

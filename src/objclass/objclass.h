@@ -157,6 +157,8 @@ extern int cls_cxx_gather(cls_method_context_t hctx, const std::set<std::string>
 
 extern int cls_cxx_get_gathered_data(cls_method_context_t hctx, std::map<std::string, bufferlist> *results);
 
+/* 增加一个新的函数用于发送带有计算请求的NVMe指令 */
+extern int cls_cxx_send_calculation_task(cls_method_context_t hctx, ceph::buffer::list *inbl, ceph::buffer::list *bl);
 /* new function defined here to read physical information of target object */
 extern int cls_cxx_get_physical_info(cls_method_context_t hctx, ceph::buffer::list *bl);
 

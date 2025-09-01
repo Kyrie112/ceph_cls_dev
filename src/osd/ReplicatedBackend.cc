@@ -273,6 +273,14 @@ int ReplicatedBackend::objects_read_sync(
   return store->read(ch, ghobject_t(hoid), off, len, *bl, op_flags);
 }
 
+int ReplicatedBackend::objects_csd_read_sync(
+    const hobject_t &hoid,
+    ceph::buffer::list *csdop,
+    ceph::buffer::list *bl)
+{
+  return store->csd_read(ch, ghobject_t(hoid), *csdop, *bl);
+}
+
 int ReplicatedBackend::objects_phyinfo_read_sync(
   const hobject_t &hoid,
   bufferlist *bl)

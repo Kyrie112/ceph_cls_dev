@@ -490,6 +490,21 @@ public:
    *
    * @param cid collection for object
    * @param oid oid of object
+   * @param csd_op the operation that user wants csd to do
+   * @param bl output ceph::buffer::list
+   * @returns number of bytes read on success, or negative error code on failure.
+  */
+   virtual int csd_read(
+     CollectionHandle &c,
+     const ghobject_t& oid,
+     ceph::buffer::list& csd_op,
+     ceph::buffer::list& bl) = 0;
+
+  /**
+   * read_phyinfo -- read physical addr of an object
+   *
+   * @param cid collection for object
+   * @param oid oid of object
    * @param bl output ceph::buffer::list
    * @returns number of bytes read on success, or negative error code on failure.
    */

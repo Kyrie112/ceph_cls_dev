@@ -549,6 +549,10 @@ typedef std::shared_ptr<const OSDMap> OSDMapRef;
      uint64_t len,
      uint32_t op_flags,
      ceph::buffer::list *bl) = 0;
+  virtual int objects_csd_read_sync(
+    const hobject_t &hoid,
+    ceph::buffer::list *csdop,
+    ceph::buffer::list *bl) = 0;
    virtual int objects_phyinfo_read_sync(
      const hobject_t &hoid,
      ceph::buffer::list *bl) = 0;

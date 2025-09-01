@@ -53,6 +53,8 @@ public:
 	   bool buffered) override;
   int aio_read(uint64_t off, uint64_t len, bufferlist *pbl,
 	       IOContext *ioc) override;
+  int aio_csd(uint64_t off, uint64_t len, bufferlist *pbl, bufferlist *csdop,
+	       IOContext *ioc) override;
 
   int read_random(uint64_t off, uint64_t len, char *buf, bool buffered) override;
   int write(uint64_t off, bufferlist& bl, bool buffered, int write_hint = WRITE_LIFE_NOT_SET) override;

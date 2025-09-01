@@ -3110,6 +3110,11 @@ public:
     size_t len,
     ceph::buffer::list& bl,
     uint32_t op_flags = 0) override;
+  int csd_read(
+    CollectionHandle &c,
+    const ghobject_t& oid,
+    ceph::buffer::list& csdop,
+    ceph::buffer::list& bl) override;
   int read_phyinfo(
      CollectionHandle &c,
      const ghobject_t& oid,
@@ -3176,6 +3181,11 @@ private:
     blobs2read_t& blobs2read,
     std::vector<ceph::buffer::list>* compressed_blob_bls,
     IOContext* ioc);
+  int _prepare_csd_ioc(
+    blobs2read_t& blobs2read,
+    std::vector<ceph::buffer::list>* compressed_blob_bls,
+    IOContext* ioc,
+    ceph::buffer::list* csdop);
 
   int _generate_read_result_bl(
     OnodeRef& o,
@@ -3195,6 +3205,12 @@ private:
     size_t len,
     ceph::buffer::list& bl,
     uint32_t op_flags = 0,
+    uint64_t retry_count = 0);
+  int _do_csd_read(
+    Collection *c,
+    OnodeRef& o,
+    ceph::buffer::list& csdop,
+    ceph::buffer::list& bl,
     uint64_t retry_count = 0);
   int _do_read_phyinfo(
     Collection *c,

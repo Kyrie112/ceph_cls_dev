@@ -1206,7 +1206,14 @@ int KStore::read(
 	   << " = " << r << dendl;
   return r;
 }
-
+int KStore::csd_read(
+    CollectionHandle &c,
+    const ghobject_t& oid,
+    ceph::buffer::list& csdop,
+    ceph::buffer::list& bl)
+{
+  return 0;
+}
 int KStore::read_phyinfo(
   CollectionHandle &c,
   const ghobject_t& oid,
