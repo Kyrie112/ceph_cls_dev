@@ -353,6 +353,13 @@ int PMEMDevice::aio_read(uint64_t off, uint64_t len, bufferlist *pbl,
   return read(off, len, pbl, ioc, false);
 }
 
+int PMEMDevice::aio_csd(uint64_t off, uint64_t len, bufferlist *pbl, bufferlist *csdop,
+	       IOContext *ioc)
+{
+  //现阶段未实现
+  return -1;
+}
+
 int PMEMDevice::aio_read(uint64_t off, uint64_t len, bufferlist *pbl, bufferlist *csdop,
 		      IOContext *ioc)
 {

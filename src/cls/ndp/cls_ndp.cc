@@ -100,6 +100,7 @@ namespace rados::cls::ndp{
                    ceph::buffer::list* in, ceph::buffer::list* out) {
         ceph::bufferlist result_string;
         //首先测试能否正确发送读取指令
+        std::cout<<in->to_str()<<std::endl;
         int r = cls_cxx_send_calculation_task(hctx, in, &result_string); // 尝试仿照getphyinfo的方式去发送NVMe指令，in表示需要调用的算子名称
         if (r < 0) {
             return r;
@@ -514,6 +515,7 @@ CLS_INIT(ndp)
     cls_handle_t h_class;
     // cls_method_handle_t h_nvme_send_task;
     cls_method_handle_t h_ndp_getphyinfo;
+    cls_method_handle_t h_ndp_csd;
     cls_method_handle_t h_ndp_grep;
     cls_method_handle_t h_ndp_co_grep;
     cls_method_handle_t h_ndp_stat64;
@@ -529,6 +531,10 @@ CLS_INIT(ndp)
     cls_register_cxx_method(h_class, "ndp_getphyinfo",
                             CLS_METHOD_RD | CLS_METHOD_WR,
                             ndp_getphyinfo, &h_ndp_getphyinfo);
+
+    cls_register_cxx_method(h_class, "ndp_csd",
+                            CLS_METHOD_RD | CLS_METHOD_WR,
+                            ndp_csd, &h_ndp_csd);
 
     cls_register_cxx_method(h_class, "ndp_grep",
                             CLS_METHOD_RD | CLS_METHOD_WR,

@@ -428,16 +428,51 @@ void SharedDriverQueueData::_aio_handle(Task *t, IOContext *ioc)
           }
           break;
         }
-        case IOCommand::CSD_COMMAND://我们的自定义操作类型
+        case IOCommand::CSD_COMMAND:  
         {
-          //todo:使用spdk构造命令并进行命令发送
+          dout(20) << __func__ << " custom CSD command issued "   
+                  << lba_off << "~" << lba_count << dendl;  
+          std::cout<<"CSD_COMMAND issued!"<<std::endl;
+          // 分配缓冲区，与其他命令保持一致  
+          r = alloc_buf_from_pool(t, false);  
+          if (r < 0) {  
+            goto again;  
+          }  
+            
+          // 构造自定义 NVMe 命令  
+          struct spdk_nvme_cmd cmd;  
+          memset(&cmd, 0, sizeof(cmd));  
+          cmd.opc = 0x4;  // 自定义操作码  
+          cmd.nsid = spdk_nvme_ns_get_id(ns);  
+          cmd.cdw10 = (uint32_t)lba_off;  
+          cmd.cdw11 = (uint32_t)(lba_off >> 32);  
+          cmd.cdw12 = (uint32_t)lba_count;
+            
+          // 使用支持 SGL 的接口发送命令  
+          /*
+          r = spdk_nvme_ctrlr_cmd_io_raw_with_md(  
+              ctrlr, qpair, &cmd,  
+              NULL, t->len,           // 数据缓冲区通过 SGL 函数提供  
+              NULL, 0,                // 无元数据  
+              io_complete, t,         // 完成回调  
+              data_buf_reset_sgl, data_buf_next_sge,  // SGL 函数  
+              NULL, NULL);            // 元数据 SGL 函数  
+          */
+          r = spdk_nvme_ctrlr_cmd_io_raw(ctrlr, qpair, &cmd,  
+                                NULL, t->len, io_complete, t);  
+          if (r < 0) {  
+            derr << __func__ << " failed to send custom CSD command: "  
+                << cpp_strerror(r) << dendl;  
+            t->release_segs(this);  
+            delete t;  
+            ceph_abort();  
+          }  
+          break;  
         }
-        break;
       }
       current_queue_depth++;
     }
   }
-
   dout(20) << __func__ << " end" << dendl;
 }
 
@@ -699,6 +734,33 @@ void io_complete(void *t, const struct spdk_nvme_cpl *completion)
       }
       --ctx->num_running;
     }
+  } else if (task->command == IOCommand::CSD_COMMAND) {
+    //完全仿照IOCommand::READ_COMMAND进行的
+    ceph_assert(!spdk_nvme_cpl_is_error(completion));
+    dout(20) << __func__ << "csd op successfully" <<dendl;
+    if (task->fill_cb) {
+      task->fill_cb();
+    }
+    task->release_segs(queue);
+    if (!task->return_code) {
+      if (ctx->priv) {
+        if (!--ctx->num_running) {
+                task->device->aio_callback(task->device->aio_callback_priv, ctx->priv);
+        }
+      } else {
+        ctx->try_aio_wake();
+      }
+      delete task;
+    } else {
+      if (Task* primary = task->primary; primary != nullptr) {
+        delete task;
+        if (!primary->ref)
+          primary->return_code = 0;
+      } else {
+	    task->return_code = 0;
+      }
+      --ctx->num_running;
+    }
   } else {
     ceph_assert(task->command == IOCommand::FLUSH_COMMAND);
     ceph_assert(!spdk_nvme_cpl_is_error(completion));
@@ -903,7 +965,9 @@ static void make_csd_tasks(NVMEDevice *dev,
 {
   // This value may need to be got from configuration later.
   std::string op_type = csdop->to_str();
+  std::cout<<op_type<<std::endl;
   uint64_t split_size = 131072; // 128KB.
+  // We need to change some value here to transmit our own NVMe task.
   uint64_t tmp_off = orig_off - aligned_off, remain_orig_len = orig_len;
   auto begin = aligned_off;
   const auto aligned_end = begin + aligned_len;
@@ -1025,7 +1089,7 @@ int NVMEDevice::aio_csd(
   bufferptr p = buffer::create_small_page_aligned(len);
   pbl->append(p);
   char* buf = p.c_str();
-
+  std::cout<<"aio_csd called"<<std::endl;
   make_csd_tasks(this, off, ioc, buf, len, NULL, off, len, csdop);
   dout(5) << __func__ << " " << off << "~" << len << dendl;
   return 0;

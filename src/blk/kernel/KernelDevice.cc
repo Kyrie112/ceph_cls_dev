@@ -1393,32 +1393,8 @@ int KernelDevice::aio_csd(
   bufferlist *csdop,
   IOContext *ioc)
 {
-  dout(5) << __func__ << " 0x" << std::hex << off << "~" << len << std::dec
-	  << dendl;
-
-  int r = 0;
-#ifdef HAVE_LIBAIO
-  if (aio && dio) {
-    ceph_assert(is_valid_io(off, len));
-    _aio_log_start(ioc, off, len);
-    ioc->pending_aios.push_back(aio_t(ioc, fd_directs[WRITE_LIFE_NOT_SET]));
-    ++ioc->num_pending;
-    aio_t& aio = ioc->pending_aios.back();
-    aio.bl.push_back(
-      ceph::buffer::ptr_node::create(create_custom_aligned(len, ioc)));
-    aio.bl.prepare_iov(&aio.iov);
-    aio.preadv(off, len);
-    dout(30) << aio << dendl;
-    pbl->append(aio.bl);
-    dout(5) << __func__ << " 0x" << std::hex << off << "~" << len
-	    << std::dec << " aio " << &aio << dendl;
-  } else
-#endif
-  {
-    r = read(off, len, pbl, ioc, false);
-  }
-
-  return r;
+  //现阶段未实现
+  return -1;
 }
 
 int KernelDevice::direct_read_unaligned(uint64_t off, uint64_t len, char *buf)

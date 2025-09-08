@@ -6259,6 +6259,7 @@ int PrimaryLogPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
       break;
     // 处理CSD操作指令
     case CEPH_OSD_OP_CSD:
+      std::cout<<"CEPH_OSD_OP_CSD handled"<<std::endl;
       result = do_read_csd(ctx, osd_op);
       break;
     case CEPH_OSD_OP_ISDIRTY:
