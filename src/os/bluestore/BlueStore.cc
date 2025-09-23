@@ -12183,7 +12183,7 @@ int BlueStore::_do_csd_read(
 {
     FUNCTRACE(cct);
     int r = 0;
-    int read_cache_policy = BufferSpace::BYPASS_CLEAN_CACHE; // need to bypass anycache
+    int read_cache_policy = BufferSpace::BYPASS_CLEAN_CACHE; // 跳过cache?(不一定能够做到)
     dout(10) << __func__ << " " << c->cid << " " << o->oid << dendl;
     if (!o->exists) {
       return -ENOENT;

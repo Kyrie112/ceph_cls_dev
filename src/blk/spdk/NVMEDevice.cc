@@ -965,7 +965,6 @@ static void make_csd_tasks(NVMEDevice *dev,
 {
   // This value may need to be got from configuration later.
   std::string op_type = csdop->to_str();
-  std::cout<<op_type<<std::endl;
   uint64_t split_size = 131072; // 128KB.
   // We need to change some value here to transmit our own NVMe task.
   uint64_t tmp_off = orig_off - aligned_off, remain_orig_len = orig_len;
@@ -1089,7 +1088,6 @@ int NVMEDevice::aio_csd(
   bufferptr p = buffer::create_small_page_aligned(len);
   pbl->append(p);
   char* buf = p.c_str();
-  std::cout<<"aio_csd called"<<std::endl;
   make_csd_tasks(this, off, ioc, buf, len, NULL, off, len, csdop);
   dout(5) << __func__ << " " << off << "~" << len << dendl;
   return 0;

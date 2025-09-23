@@ -100,12 +100,13 @@ namespace rados::cls::ndp{
                    ceph::buffer::list* in, ceph::buffer::list* out) {
         ceph::bufferlist result_string;
         //首先测试能否正确发送读取指令
-        std::cout<<in->to_str()<<std::endl;
         int r = cls_cxx_send_calculation_task(hctx, in, &result_string); // 尝试仿照getphyinfo的方式去发送NVMe指令，in表示需要调用的算子名称
         if (r < 0) {
             return r;
         }
+        out->append(in->to_str());
         out->append(result_string.to_str());
+        out->append("CSD executed");
         return 0;
     }
 

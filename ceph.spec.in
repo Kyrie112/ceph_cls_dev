@@ -20,6 +20,7 @@
 # please read this for explanation of bcond syntax:
 # https://rpm-software-management.github.io/rpm/manual/conditionalbuilds.html
 #################################################################################
+%bcond_without spdk
 %bcond_with make_check
 %bcond_with cmake_verbose_logging
 %bcond_without ceph_test_package
