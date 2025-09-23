@@ -432,7 +432,6 @@ void SharedDriverQueueData::_aio_handle(Task *t, IOContext *ioc)
         {
           dout(20) << __func__ << " custom CSD command issued "   
                   << lba_off << "~" << lba_count << dendl;  
-          std::cout<<"CSD_COMMAND issued!"<<std::endl;
           // 分配缓冲区，与其他命令保持一致  
           r = alloc_buf_from_pool(t, false);  
           if (r < 0) {  
