@@ -12078,6 +12078,7 @@ int BlueStore::csd_read(
     ceph::buffer::list& csdop,
     ceph::buffer::list& bl)
 {
+  dout(20) << __func__ << dendl;
   auto start = mono_clock::now();
   Collection *c = static_cast<Collection *>(c_.get());
   const coll_t &cid = c->get_cid();

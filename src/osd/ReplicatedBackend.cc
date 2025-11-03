@@ -278,6 +278,7 @@ int ReplicatedBackend::objects_csd_read_sync(
     ceph::buffer::list *csdop,
     ceph::buffer::list *bl)
 {
+  dout(20) << __func__ << dendl;
   return store->csd_read(ch, ghobject_t(hoid), *csdop, *bl);
 }
 
